@@ -12,18 +12,44 @@
       margin: 0;
       padding: 16px;
     }
-    h1, h2 { margin-top: 0; }
+
+    /* HEADER */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .app-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .tabs {
+      display: flex;
+      gap: 6px;
+    }
+    .tab {
+      padding: 6px 10px;
+      font-size: 13px;
+      border-radius: 6px;
+      background: #1e293b;
+      cursor: pointer;
+    }
+    .tab.active { background: #2563eb; }
+
+    /* COMMON */
     button {
       background: #2563eb;
       color: white;
       border: none;
-      padding: 8px 12px;
+      padding: 8px 14px;
       border-radius: 8px;
       cursor: pointer;
     }
-    button.secondary { background: #334155; }
-    button.danger { background: #dc2626; }
-    button.icon { background: transparent; font-size: 18px; }
+    button.icon {
+      background: transparent;
+      font-size: 22px;
+    }
     input {
       padding: 8px;
       border-radius: 6px;
@@ -40,25 +66,39 @@
       justify-content: space-between;
       align-items: center;
     }
-    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-    .tab { flex: 1; padding: 10px; text-align: center; border-radius: 8px; background: #1e293b; cursor: pointer; }
-    .tab.active { background: #2563eb; }
+
     .screen { display: none; }
     .screen.active { display: block; }
-    .timer { font-size: 48px; font-variant-numeric: tabular-nums; margin: 24px 0; text-align: center; }
-    .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    /* TIMER CENTER */
+    .timer-container {
+      min-height: calc(100vh - 100px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    .timer {
+      font-size: 56px;
+      font-variant-numeric: tabular-nums;
+    }
+    .row { display: flex; align-items: center; gap: 8px; }
   </style>
 </head>
 <body>
 
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab('list')">🛠 Idling work</div>
-    <div class="tab" onclick="switchTab('timer')">⏱ Timer</div>
+  <div class="header">
+    <div class="app-title">⏱ Idle Build Timer</div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('list')">List</div>
+      <div class="tab" onclick="switchTab('timer')">Timer</div>
+    </div>
   </div>
 
-  <!-- TAB 1 -->
+  <!-- TAB LIST -->
   <section id="list" class="screen active">
-    <h1>Idling work list</h1>
+    <h2>Idling work list</h2>
     <div class="row">
       <input id="newTask" placeholder="Ví dụ: vận động nhẹ" />
       <button onclick="addTask()">Thêm</button>
@@ -66,20 +106,22 @@
     <ul id="taskList"></ul>
   </section>
 
-  <!-- TAB 2 -->
+  <!-- TAB TIMER -->
   <section id="timerTab" class="screen">
-    <h2 id="taskTitle"></h2>
+    <div class="timer-container">
+      <h2 id="taskTitle"></h2>
 
-    <div class="row">
-      <label>Phút <input id="minutes" type="number" min="0" value="0"></label>
-      <label>Giây <input id="seconds" type="number" min="0" max="59" value="5"></label>
-    </div>
+      <div class="row">
+        <label>Phút <input id="minutes" type="number" min="0" value="0"></label>
+        <label>Giây <input id="seconds" type="number" min="0" max="59" value="5"></label>
+      </div>
 
-    <div class="timer" id="timer">00:05</div>
+      <div class="timer" id="timer">00:05</div>
 
-    <div class="row">
-      <button onclick="startTimer()">▶ Start</button>
-      <button class="icon" id="bellBtn" onclick="toggleBell()">🔔</button>
+      <div class="row">
+        <button onclick="startTimer()">▶ Start</button>
+        <button class="icon" id="bellBtn" onclick="stopAlarm()">🔕</button>
+      </div>
     </div>
   </section>
 
@@ -88,10 +130,8 @@ let tasks = JSON.parse(localStorage.getItem('tasks') || '["Vận động nhẹ",
 let currentIndex = 0;
 let remaining = 0;
 let interval = null;
-let bellOn = true;
 let audioCtx = null;
-
-function save() { localStorage.setItem('tasks', JSON.stringify(tasks)); }
+let alarmInterval = null;
 
 function switchTab(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -107,11 +147,13 @@ function switchTab(id) {
   }
 }
 
+function save() { localStorage.setItem('tasks', JSON.stringify(tasks)); }
+
 function renderList() {
   taskList.innerHTML = '';
   tasks.forEach((t, i) => {
     const li = document.createElement('li');
-    li.innerHTML = `<span>${t}</span><span><button class="icon" onclick="editTask(${i})">✏️</button><button class="icon danger" onclick="deleteTask(${i})">🗑️</button></span>`;
+    li.innerHTML = `<span>${t}</span><span><button class="icon" onclick="editTask(${i})">✏️</button><button class="icon" onclick="deleteTask(${i})">🗑️</button></span>`;
     taskList.appendChild(li);
   });
 }
@@ -152,7 +194,6 @@ function renderTime() {
 function startTimer() {
   stopTimer();
   unlockAudio();
-  requestNotification();
   setTime();
   interval = setInterval(() => {
     remaining--;
@@ -168,19 +209,23 @@ function stopTimer() {
 
 function finish() {
   stopTimer();
-  if (bellOn) playBeep();
-  showNotification();
-  currentIndex = (currentIndex + 1) % tasks.length;
-  updateTask();
-}
-
-function toggleBell() {
-  bellOn = !bellOn;
-  bellBtn.textContent = bellOn ? '🔔' : '🔕';
+  startAlarm();
 }
 
 function unlockAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function startAlarm() {
+  if (alarmInterval) return;
+  alarmInterval = setInterval(playBeep, 800);
+}
+
+function stopAlarm() {
+  if (alarmInterval) clearInterval(alarmInterval);
+  alarmInterval = null;
+  currentIndex = (currentIndex + 1) % tasks.length;
+  updateTask();
 }
 
 function playBeep() {
@@ -191,20 +236,8 @@ function playBeep() {
   osc.connect(gain); gain.connect(audioCtx.destination);
   osc.start();
   gain.gain.setValueAtTime(1, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
-  osc.stop(audioCtx.currentTime + 0.6);
-}
-
-function requestNotification() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'default') Notification.requestPermission();
-}
-
-function showNotification() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'granted') {
-    new Notification('⏱ Idle Build Timer', { body: `Hoàn thành: ${tasks[currentIndex]}` });
-  }
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+  osc.stop(audioCtx.currentTime + 0.5);
 }
 
 renderList();
