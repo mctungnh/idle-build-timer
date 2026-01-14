@@ -97,9 +97,7 @@
     </div>
   </section>
 
-  <audio id="beep">
-    <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=" />
-  </audio>
+  <audio id="beep"></audio>
 
 <script>
 let tasks = JSON.parse(localStorage.getItem('tasks') || '["Vận động nhẹ","Đi uống nước","Viết 2 dòng"]');
@@ -195,9 +193,27 @@ function stopTimer() {
 
 function finish() {
   stopTimer();
-  if (bellOn) beep.play();
+  if (bellOn) playBeep();
   currentIndex = (currentIndex + 1) % tasks.length;
   updateTask();
+}
+
+function playBeep() {
+  // Web Audio API – works reliably after user interaction
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.value = 880; // beep
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start();
+  gain.gain.setValueAtTime(1, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+  osc.stop(ctx.currentTime + 0.5);
 }
 
 function toggleBell() {
