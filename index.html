@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Idle Build Timer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      margin: 0;
+      padding: 16px;
+    }
+    h1, h2 { margin-top: 0; }
+    .hidden { display: none; }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button.secondary { background: #334155; }
+    button.danger { background: #dc2626; }
+    button.icon {
+      background: transparent;
+      font-size: 18px;
+    }
+    input {
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      margin-right: 8px;
+    }
+    ul { list-style: none; padding: 0; }
+    li {
+      background: #1e293b;
+      padding: 8px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .timer {
+      font-size: 48px;
+      font-variant-numeric: tabular-nums;
+      margin: 24px 0;
+    }
+    .row { display: flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+
+  <!-- SCREEN 1 -->
+  <section id="screen-list">
+    <h1>🛠️ Idling work list</h1>
+    <div class="row">
+      <input id="newTask" placeholder="Ví dụ: vận động nhẹ" />
+      <button onclick="addTask()">Thêm</button>
+    </div>
+    <ul id="taskList"></ul>
+    <button class="secondary" onclick="goTimer()">➡️ Sang màn hình timer</button>
+  </section>
+
+  <!-- SCREEN 2 -->
+  <section id="screen-timer" class="hidden">
+    <button class="secondary" onclick="goList()">⬅️ Quay lại</button>
+    <h2 id="taskTitle"></h2>
+
+    <div class="row">
+      <input id="minutes" type="number" min="1" value="5" /> phút
+    </div>
+
+    <div class="timer" id="timer">05:00</div>
+
+    <div class="row">
+      <button onclick="startTimer()">▶ Start</button>
+      <button class="icon" id="bellBtn" onclick="toggleBell()">🔔</button>
+    </div>
+  </section>
+
+  <audio id="beep">
+    <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=" />
+  </audio>
+
+<script>
+let tasks = JSON.parse(localStorage.getItem('tasks') || '["Vận động nhẹ","Đi uống nước","Viết 2 dòng"]');
+let currentIndex = 0;
+let remaining = 0;
+let interval = null;
+let bellOn = true;
+
+function save() {
+  localStorage.setItem('tasks', JSON.stringify(tasks));
+}
+
+function renderList() {
+  const ul = document.getElementById('taskList');
+  ul.innerHTML = '';
+  tasks.forEach((t, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span>${t}</span>
+      <span>
+        <button class="icon" onclick="editTask(${i})">✏️</button>
+        <button class="icon danger" onclick="deleteTask(${i})">🗑️</button>
+      </span>`;
+    ul.appendChild(li);
+  });
+}
+
+function addTask() {
+  const v = newTask.value.trim();
+  if (!v) return;
+  tasks.push(v);
+  newTask.value = '';
+  save();
+  renderList();
+}
+
+function editTask(i) {
+  const v = prompt('Sửa công việc', tasks[i]);
+  if (v) { tasks[i] = v; save(); renderList(); }
+}
+
+function deleteTask(i) {
+  tasks.splice(i, 1);
+  save();
+  renderList();
+}
+
+function goTimer() {
+  if (!tasks.length) return alert('Chưa có idling work');
+  screenList.classList.add('hidden');
+  screenTimer.classList.remove('hidden');
+  currentIndex = 0;
+  updateTask();
+}
+
+function goList() {
+  stopTimer();
+  screenTimer.classList.add('hidden');
+  screenList.classList.remove('hidden');
+}
+
+function updateTask() {
+  taskTitle.textContent = tasks[currentIndex];
+  setTime();
+}
+
+function setTime() {
+  remaining = minutes.value * 60;
+  renderTime();
+}
+
+function renderTime() {
+  const m = String(Math.floor(remaining / 60)).padStart(2,'0');
+  const s = String(remaining % 60).padStart(2,'0');
+  timer.textContent = `${m}:${s}`;
+}
+
+function startTimer() {
+  stopTimer();
+  setTime();
+  interval = setInterval(() => {
+    remaining--;
+    renderTime();
+    if (remaining <= 0) finish();
+  }, 1000);
+}
+
+function stopTimer() {
+  if (interval) clearInterval(interval);
+  interval = null;
+}
+
+function finish() {
+  stopTimer();
+  if (bellOn) beep.play();
+  currentIndex = (currentIndex + 1) % tasks.length;
+  updateTask();
+}
+
+function toggleBell() {
+  bellOn = !bellOn;
+  bellBtn.textContent = bellOn ? '🔔' : '🔕';
+}
+
+renderList();
+</script>
+</body>
+</html>
+
